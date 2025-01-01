@@ -1,0 +1,40 @@
+# Project Structure Rules
+
+1. Keep backend and frontend completely separate
+   - Backend work stays in secure-file-backend/
+   - Frontend work will stay in secure-file-frontend/ (when created)
+
+2. Follow file-structure.md strictly
+   - No mixing of frontend and backend code
+   - No creating directories outside their designated areas
+
+3. Backend Structure (in secure-file-backend/):
+   ├── core/                # Core functionality
+   ├── authentication/      # Authentication related
+   ├── files/              # File management
+   ├── shares/             # File sharing
+   ├── middleware/         # Custom middleware
+   ├── api/               # API URLs
+   ├── secure_file/       # Project settings
+   ├── manage.py
+   └── requirements.txt
+
+4. Django App Structure Rules:
+   - Apps should be at the root level of secure-file-backend/
+   - NEVER create nested app directories (e.g., app/core is WRONG)
+   - Each app should be self-contained
+   - Settings should reference apps directly (e.g., 'core', not 'app.core')
+
+5. Always check current directory before making changes
+   - Use pwd to verify location
+   - Use ls to verify structure
+
+6. Never create duplicate project structures
+   - Don't create new Django projects when one exists
+   - Fix existing structure instead of creating new ones
+   - NEVER have duplicate app directories
+
+7. App Reference Rules:
+   - In settings.py: use direct app names (e.g., 'core', 'authentication')
+   - In imports: use direct imports (e.g., from core.models import User)
+   - In URLs: reference apps directly (e.g., include('authentication.urls')) 
