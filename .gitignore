@@ -52,6 +52,7 @@ yarn-error.log*
 *.swo
 .DS_Store
 Thumbs.db
+.cursorrules
 
 # Project specific
 secure-file-backend/media/

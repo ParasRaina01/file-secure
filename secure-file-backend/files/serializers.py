@@ -107,11 +107,12 @@ class FileDownloadSerializer(serializers.ModelSerializer):
     """Serializer for file download responses"""
     download_url = serializers.SerializerMethodField()
     encryption_iv = serializers.SerializerMethodField()
+    upload_timestamp = serializers.DateTimeField(format="%Y-%m-%dT%H:%M:%SZ")
 
     class Meta:
         model = File
         fields = ('id', 'filename', 'original_file_size', 'mime_type', 
-                 'encryption_iv', 'download_url')
+                 'encryption_iv', 'download_url', 'upload_timestamp')
 
     def get_download_url(self, obj):
         """Generate the download URL for the file"""
