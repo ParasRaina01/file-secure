@@ -46,16 +46,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class EnableMFASerializer(serializers.Serializer):
     totp_code = serializers.CharField(required=True, min_length=6, max_length=6)
+    secret = serializers.CharField(required=True)
 
-    def validate_totp_code(self, value):
+    def validate(self, attrs):
         user = self.context['request'].user
-        if not user.mfa_secret:
-            raise serializers.ValidationError("MFA secret not generated. Please request a new MFA setup.")
+        totp = pyotp.TOTP(attrs['secret'])
         
-        totp = pyotp.TOTP(user.mfa_secret)
-        if not totp.verify(value):
-            raise serializers.ValidationError("Invalid TOTP code.")
-        return value
+        if not totp.verify(attrs['totp_code']):
+            raise serializers.ValidationError({"totp_code": "Invalid TOTP code."})
+            
+        # Store the validated secret
+        user.mfa_secret = attrs['secret']
+        return attrs
 
 
 class VerifyMFASerializer(serializers.Serializer):

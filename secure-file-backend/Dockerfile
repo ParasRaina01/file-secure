@@ -15,6 +15,7 @@ RUN apt-get update \
         gcc \
         python3-dev \
         libssl-dev \
+        libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -25,7 +26,7 @@ RUN useradd -m -U app_user \
 COPY --chown=app_user:app_user requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout=600 -r requirements.txt
 
 # Copy project files
 COPY --chown=app_user:app_user . .

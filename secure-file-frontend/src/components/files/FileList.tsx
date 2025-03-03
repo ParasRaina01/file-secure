@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Upload, FileIcon, Loader2, Trash2, Search, ArrowUpDown, Share } from 'lucide-react';
+import { Upload, FileIcon, Loader2, Trash2, Search, ArrowUpDown, Share2 } from 'lucide-react';
 import { Input } from '../ui/input';
 import api from '@/lib/axios';
 import { FileDownload } from './FileDownload';
@@ -589,7 +589,7 @@ export function FileList() {
                       size="sm"
                       onClick={() => setFileToShare(file)}
                     >
-                      <Share className="h-4 w-4" />
+                      <Share2 className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"

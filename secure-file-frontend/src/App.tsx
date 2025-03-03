@@ -1,20 +1,22 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from '@/store/store';
-import { Toaster } from './components/ui/toaster';
-import { LandingPage } from './components/pages/LandingPage';
-import { LoginForm } from './components/auth/LoginForm';
-import { RegisterForm } from './components/auth/RegisterForm';
-import { DashboardPage } from './components/pages/DashboardPage';
-import { useAppSelector } from './store/hooks';
-import { ThemeProvider } from './components/theme/theme-provider';
+import { Toaster } from '@/components/ui/toaster';
+import { useAppSelector } from '@/store/hooks';
+// import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from '@/components/theme/theme-provider';
+import { PublicShareView } from '@/components/shares/PublicShareView';
+import { DashboardPage } from '@/components/pages/DashboardPage';
+import { Login } from '@/components/pages/Login';
+import { Register } from '@/components/pages/Register';
+import { LandingPage } from '@/components/pages/LandingPage';
 
 // Protected Route component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
@@ -25,7 +27,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -42,15 +44,16 @@ function AppRoutes() {
       } />
       <Route path="/login" element={
         <PublicRoute>
-          <LoginForm />
+          <Login />
         </PublicRoute>
       } />
       <Route path="/register" element={
         <PublicRoute>
-          <RegisterForm />
+          <Register />
         </PublicRoute>
       } />
-      <Route path="/dashboard" element={
+      <Route path="/share/:token" element={<PublicShareView />} />
+      <Route path="/dashboard/*" element={
         <ProtectedRoute>
           <DashboardPage />
         </ProtectedRoute>
@@ -63,7 +66,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <Provider store={store}>
-      <ThemeProvider>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         <Router>
           <AppRoutes />
           <Toaster />

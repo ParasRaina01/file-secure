@@ -4,6 +4,7 @@ from .key_management import KeyManagement
 import magic
 import os
 from django.conf import settings
+import uuid
 
 class FileUploadSerializer(serializers.ModelSerializer):
     file = serializers.FileField(write_only=True)
@@ -60,10 +61,8 @@ class FileUploadSerializer(serializers.ModelSerializer):
         uploaded_file = validated_data.pop('file')
         encryption_iv = validated_data.pop('encryption_iv')
         
-        # Generate a secure filename using uuid
-        import uuid
-        file_extension = os.path.splitext(uploaded_file.name)[1]
-        encrypted_filename = f"{uuid.uuid4().hex}{file_extension}"
+        # Generate a unique identifier for reference
+        encrypted_filename = f"{uuid.uuid4().hex}"
 
         # Read the client-side encrypted file
         client_encrypted_data = uploaded_file.read()
@@ -82,7 +81,7 @@ class FileUploadSerializer(serializers.ModelSerializer):
         # Encrypt the file key with the master key
         encrypted_key = KeyManagement.encrypt_file_key(file_key)
 
-        # Create the file instance
+        # Create the file instance with encrypted content in database
         file_instance = File.objects.create(
             user=self.context['request'].user,
             filename=uploaded_file.name,
@@ -90,15 +89,9 @@ class FileUploadSerializer(serializers.ModelSerializer):
             encryption_iv=bytes.fromhex(encryption_iv),  # Client-side IV
             encrypted_file_key=encrypted_key,  # Server-side encrypted key
             server_side_iv=server_iv,  # Server-side IV
+            encrypted_content=server_encrypted_data,  # Store encrypted file in database
             **validated_data
         )
-
-        # Save the server-side encrypted file
-        file_path = os.path.join(settings.MEDIA_ROOT, 'uploads', encrypted_filename)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        
-        with open(file_path, 'wb+') as destination:
-            destination.write(server_encrypted_data)
 
         return file_instance
 

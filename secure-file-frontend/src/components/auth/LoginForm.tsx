@@ -9,6 +9,7 @@ import { Label } from '../ui/label';
 import { Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/axios';
+import { MFASetup } from './MFASetup';
 
 interface FormData {
   email: string;
@@ -23,8 +24,9 @@ interface FormErrors {
 }
 
 interface MFASetupData {
-  mfa_secret: string;
-  mfa_qr_code: string;
+  secret: string;
+  qr_code: string;
+  token: string;
 }
 
 interface ApiError {
@@ -90,7 +92,7 @@ export function LoginForm() {
       });
       
       // Check if we have the required data
-      if (!response.data.mfa_secret || !response.data.mfa_qr_code) {
+      if (!response.data.secret || !response.data.qr_code) {
         throw new Error('Invalid response from server');
       }
 
@@ -230,6 +232,28 @@ export function LoginForm() {
     }
   };
 
+  if (showQRCode && mfaSetupData) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <MFASetup
+          mfaSecret={mfaSetupData.secret}
+          mfaQrCode={mfaSetupData.qr_code}
+          token={mfaSetupData.token}
+          onSetupComplete={() => {
+            setShowQRCode(false);
+            setMFASetupData(null);
+            // Reset form data except email
+            setFormData(prev => ({
+              ...prev,
+              password: '',
+              totp_code: ''
+            }));
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background">
       <Card className="w-full max-w-md">
@@ -243,7 +267,6 @@ export function LoginForm() {
           <CardContent className="space-y-4">
             {!mfaRequired ? (
               <>
-                {/* Email field */}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -253,45 +276,34 @@ export function LoginForm() {
                     placeholder="Enter your email"
                     value={formData.email}
                     onChange={handleChange}
-                    className={`h-11 ${errors.email ? 'border-destructive' : ''}`}
-                    disabled={isLoading}
+                    className={errors.email ? 'border-destructive' : ''}
+                    disabled={isLoading || isGeneratingQR}
                   />
                   {errors.email && (
                     <p className="text-sm text-destructive">{errors.email}</p>
                   )}
                 </div>
-
-                {/* Password field */}
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       name="password"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
                       value={formData.password}
                       onChange={handleChange}
-                      className={`h-11 pr-10 ${errors.password ? 'border-destructive' : ''}`}
-                      disabled={isLoading}
+                      className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
+                      disabled={isLoading || isGeneratingQR}
                     />
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-11 w-11 px-0 text-foreground hover:text-foreground/80"
                       onClick={() => setShowPassword(!showPassword)}
-                      disabled={isLoading}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      disabled={isLoading || isGeneratingQR}
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                      <span className="sr-only">
-                        {showPassword ? "Hide password" : "Show password"}
-                      </span>
-                    </Button>
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                   {errors.password && (
                     <p className="text-sm text-destructive">{errors.password}</p>
@@ -299,84 +311,44 @@ export function LoginForm() {
                 </div>
               </>
             ) : (
-              <>
-                {showQRCode && mfaSetupData ? (
-                  <div className="space-y-4">
-                    <div className="flex justify-center">
-                      <img 
-                        src={mfaSetupData.mfa_qr_code} 
-                        alt="QR Code for 2FA Setup" 
-                        className="w-48 h-48"
-                      />
-                    </div>
-                    <div className="text-center text-sm text-muted-foreground">
-                      <p>Can't scan the QR code?</p>
-                      <p className="mt-1">Enter this code manually: <code className="bg-muted px-2 py-1 rounded">{mfaSetupData.mfa_secret}</code></p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setShowQRCode(false)}
-                    >
-                      Back to code entry
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {/* 2FA field */}
-                    <div className="space-y-2">
-                      <Label htmlFor="totp_code">2FA Code</Label>
-                      <Input
-                        id="totp_code"
-                        name="totp_code"
-                        type="text"
-                        placeholder="Enter your 6-digit code"
-                        value={formData.totp_code}
-                        onChange={handleChange}
-                        className={`h-11 text-center tracking-widest ${errors.totp_code ? 'border-destructive' : ''}`}
-                        disabled={isLoading}
-                        maxLength={6}
-                        autoComplete="off"
-                        autoFocus
-                      />
-                      {errors.totp_code && (
-                        <p className="text-sm text-destructive">{errors.totp_code}</p>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={handleGenerateQRCode}
-                      disabled={isGeneratingQR}
-                    >
-                      {isGeneratingQR ? 'Generating...' : 'Lost your 2FA setup? Generate new QR code'}
-                    </Button>
-                  </>
+              <div className="space-y-2">
+                <Label htmlFor="totp_code">2FA Code</Label>
+                <Input
+                  id="totp_code"
+                  name="totp_code"
+                  type="text"
+                  placeholder="Enter 6-digit code"
+                  value={formData.totp_code}
+                  onChange={handleChange}
+                  className={`text-center tracking-widest ${errors.totp_code ? 'border-destructive' : ''}`}
+                  disabled={isLoading}
+                  maxLength={6}
+                  autoComplete="off"
+                  autoFocus
+                />
+                {errors.totp_code && (
+                  <p className="text-sm text-destructive">{errors.totp_code}</p>
                 )}
-              </>
-            )}
-          </CardContent>
-
-          <CardFooter className="flex flex-col gap-4">
-            {!showQRCode && (
-              <Button 
-                className="w-full h-11" 
-                type="submit" 
-                disabled={isLoading}
-              >
-                {isLoading ? 'Signing in...' : mfaRequired ? 'Verify 2FA Code' : 'Sign In'}
-              </Button>
-            )}
-            {!mfaRequired && (
-              <div className="text-sm text-center text-muted-foreground">
-                Don't have an account?{' '}
-                <a href="/register" className="text-primary hover:underline">
-                  Create account
-                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full mt-2"
+                  onClick={handleGenerateQRCode}
+                  disabled={isGeneratingQR}
+                >
+                  {isGeneratingQR ? 'Generating...' : 'Generate New QR Code'}
+                </Button>
               </div>
             )}
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="w-full" 
+              type="submit" 
+              disabled={isLoading || isGeneratingQR}
+            >
+              {isLoading ? 'Please wait...' : mfaRequired ? 'Verify' : 'Sign In'}
+            </Button>
           </CardFooter>
         </form>
       </Card>

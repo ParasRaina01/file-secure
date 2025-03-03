@@ -1,13 +1,17 @@
 from django.urls import path
 from .views import (
-    CreateSharedLinkView,
-    RevokeSharedLinkView,
-    SharedLinkAccessView
+    CreateShareLinkView,
+    RevokeShareView,
+    ShareLinkAccessView,
+    SharePreviewView,
+    ShareDownloadView
 )
 
 urlpatterns = [
-    # Public sharing links
-    path('files/<int:file_id>/create-link/', CreateSharedLinkView.as_view(), name='create-share-link'),
-    path('links/<int:pk>/revoke/', RevokeSharedLinkView.as_view(), name='revoke-share-link'),
-    path('share/<str:unique_id>/', SharedLinkAccessView.as_view(), name='access-shared-link'),
+    # File sharing endpoints
+    path('files/<int:file_id>/create-link/', CreateShareLinkView.as_view(), name='create-share'),
+    path('shares/<uuid:pk>/revoke/', RevokeShareView.as_view(), name='revoke-share'),
+    path('shares/share/<uuid:token>/', ShareLinkAccessView.as_view(), name='access-share'),
+    path('shares/share/<uuid:token>/preview/', SharePreviewView.as_view(), name='preview-share'),
+    path('shares/share/<uuid:token>/download/', ShareDownloadView.as_view(), name='download-share'),
 ] 

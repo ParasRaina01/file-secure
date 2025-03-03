@@ -1,18 +1,21 @@
 from django.shortcuts import render, get_object_or_404
-from rest_framework import generics, status
+from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from django.core.exceptions import ValidationError
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, Http404
 from .serializers import FileUploadSerializer, FileDownloadSerializer
 from .models import File
 from .key_management import KeyManagement
 import traceback
 import logging
+from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
+from django.utils.http import http_date
+import mimetypes
 import os
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -104,10 +107,6 @@ class FileDetailView(generics.RetrieveDestroyAPIView):
         user = self.request.user
         return File.objects.filter(user=user)
 
-    def perform_destroy(self, instance):
-        """Override destroy to ensure file is deleted from disk"""
-        instance.delete()  # This will trigger the overridden delete() method in the File model
-
 
 class FileContentView(APIView):
     """
@@ -115,25 +114,48 @@ class FileContentView(APIView):
     The file is decrypted from server-side encryption before being sent,
     but remains encrypted with client-side encryption.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = []  # Allow public access for shared files
+    
+    def get_object(self, file_id, user=None):
+        """Get file if user has access through ownership or share"""
+        file_instance = get_object_or_404(File, id=file_id)
+        
+        # Check if user owns the file
+        if user and file_instance.user == user:
+            return file_instance
+            
+        # Check if file is shared with user
+        share = SharePermission.objects.filter(
+            file=file_instance,
+            expires_at__gt=timezone.now(),
+            is_download_enabled=True
+        ).first()
+        
+        if not share:
+            raise PermissionDenied("You don't have permission to access this file")
+            
+        if not share.can_download(user):
+            raise PermissionDenied("Download not allowed")
+            
+        return file_instance
 
     def get(self, request, file_id):
-        # Get the file instance
-        file_instance = get_object_or_404(File, id=file_id, user=request.user)
-        
-        # Construct the file path
-        file_path = file_instance.file_path
-        
-        if not os.path.exists(file_path):
-            return Response(
-                {'error': 'File not found on server'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
         try:
-            # Read the server-side encrypted file
-            with open(file_path, 'rb') as f:
-                server_encrypted_data = f.read()
+            # Get the file instance
+            file_instance = self.get_object(file_id, request.user if request.user.is_authenticated else None)
+            
+            # Get the server-side encrypted data from database
+            server_encrypted_data = file_instance.encrypted_content
+            
+            if not server_encrypted_data:
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "File content not found",
+                        "detail": "The file content could not be found"
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             # Get the file key and decrypt it
             file_key = file_instance.get_file_key()
@@ -157,9 +179,69 @@ class FileContentView(APIView):
             
             return response
             
+        except PermissionDenied as e:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Access denied",
+                    "detail": str(e)
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
         except Exception as e:
             logger.error(f"Error during file download: {str(e)}\n{traceback.format_exc()}")
             return Response(
-                {'error': 'Error occurred while downloading the file'},
+                {
+                    "status": "error",
+                    "message": "Error occurred while downloading the file",
+                    "detail": str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class FilePreviewView(APIView):
+    """View for previewing files"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, file_id):
+        try:
+            # Get the file instance
+            file = get_object_or_404(File, id=file_id, user=request.user)
+            
+            if not file.encrypted_content:
+                return Response(
+                    {"error": "File content not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Get the file key and decrypt it
+            file_key = file.get_file_key()
+
+            # Decrypt the server-side encryption
+            decrypted_data = KeyManagement.decrypt_file(
+                file.encrypted_content,
+                file_key,
+                file.server_side_iv
+            )
+            
+            # Create response with proper content type
+            response = HttpResponse(
+                decrypted_data,
+                content_type=file.mime_type
+            )
+            
+            # Set headers for preview
+            response['Content-Length'] = len(decrypted_data)
+            response['Content-Disposition'] = f'inline; filename="{file.filename}"'
+            response['X-Frame-Options'] = 'SAMEORIGIN'
+            response['Access-Control-Allow-Origin'] = '*'
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in FilePreviewView: {str(e)}\n{traceback.format_exc()}")
+            return Response(
+                {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

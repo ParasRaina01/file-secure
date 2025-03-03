@@ -176,9 +176,14 @@ class SetupMFAView(APIView):
         qr_image.save(buffer, format="PNG")
         qr_base64 = base64.b64encode(buffer.getvalue()).decode()
 
+        # Generate a temporary token for MFA setup
+        refresh = RefreshToken.for_user(user)
+        temp_token = str(refresh.access_token)
+
         return Response({
             'secret': secret,
-            'qr_code': f"data:image/png;base64,{qr_base64}"
+            'qr_code': f"data:image/png;base64,{qr_base64}",
+            'token': temp_token
         })
 
 
